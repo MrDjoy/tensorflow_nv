@@ -324,11 +324,7 @@ string DebugString(const nvinfer1::Dims& dims) {
   string out = StrCat("nvinfer1::Dims(nbDims=", dims.nbDims, ", d=");
   for (int i = 0; i < dims.nbDims; ++i) {
     StrAppend(&out, dims.d[i]);
-    if (VLOG_IS_ON(2)) {
-      StrAppend(&out, "[", DebugString(dims.type[i]), "],");
-    } else {
-      StrAppend(&out, ",");
-    }
+    StrAppend(&out, ",");
   }
   StrAppend(&out, ")");
   return out;
@@ -858,16 +854,17 @@ void Reorder5(const nvinfer1::Dims& shape, const T* idata,
 // TODO(jie): reorder4 & reorder2 should be merged?
 // TODO(aaroey): fix the order of parameters.
 template <typename T>
-void Reorder4(const nvinfer1::DimsNCHW& shape, const T* idata,
-              const nvinfer1::DimsNCHW& istrides, T* odata,
-              const nvinfer1::DimsNCHW& ostrides) {
-  for (int n = 0; n < shape.n(); ++n) {
-    for (int c = 0; c < shape.c(); ++c) {
-      for (int h = 0; h < shape.h(); ++h) {
-        for (int w = 0; w < shape.w(); ++w) {
-          odata[n * ostrides.n() + c * ostrides.c() + h * ostrides.h() +
-                w * ostrides.w()] = idata[n * istrides.n() + c * istrides.c() +
-                                          h * istrides.h() + w * istrides.w()];
+void Reorder4(const nvinfer1::Dims4& shape, const T* idata,
+              const nvinfer1::Dims4& istrides, T* odata,
+              const nvinfer1::Dims4& ostrides) {
+  for (int n = 0; n < shape.d[0]; ++n) {
+    for (int c = 0; c < shape.d[1]; ++c) {
+      for (int h = 0; h < shape.d[2]; ++h) {
+        for (int w = 0; w < shape.d[3]; ++w) {
+          odata[n * ostrides.d[0] + c * ostrides.d[1] + h * ostrides.d[2] +
+                w * ostrides.d[3]] =
+              idata[n * istrides.d[0] + c * istrides.d[1] + h * istrides.d[2] +
+                    w * istrides.d[3]];
         }
       }
     }
@@ -932,8 +929,8 @@ void ReorderRSCKToKCRS(const TRT_ShapedWeights& iweights,
   oweights->shape_.d[1] = c * num_groups;
   oweights->shape_.d[2] = r;
   oweights->shape_.d[3] = s;
-  const nvinfer1::DimsNCHW istrides = {1, k, s * k * c, c * k};
-  const nvinfer1::DimsNCHW ostrides = {c * r * s, r * s, s, 1};
+  const nvinfer1::Dims4 istrides = {1, k, s * k * c, c * k};
+  const nvinfer1::Dims4 ostrides = {c * r * s, r * s, s, 1};
   switch (iweights.TrtDType()) {
     case nvinfer1::DataType::kFLOAT: {
       Reorder4({k, c, r, s}, static_cast<float const*>(iweights.GetValues()),
@@ -1383,8 +1380,6 @@ Status Converter::TransposeTensor(nvinfer1::ITensor* input_tensor,
   reshape_dims.nbDims = dims.nbDims;
   for (int32_t i = 0; i < reshape_dims.nbDims; ++i) {
     reshape_dims.d[i] = 0;
-    // TODO(aaroey): why not transposing the types as well?
-    reshape_dims.type[i] = dims.type[i];
   }
   layer->setReshapeDimensions(reshape_dims);
 
@@ -5012,7 +5007,7 @@ Status ConvertDepthSpaceShuffle(OpConverterParams* params) {
     transpose_perm = {2, 3, 0, 4, 1};
     // Second Reshape [C/(r*r), H, r, W, r] -> [C/(r*r), H * r, W * r]
     second_shuffle_shape =
-        nvinfer1::DimsCHW(num_channels / (block_size * block_size),
+        nvinfer1::Dims3(num_channels / (block_size * block_size),
                           h * block_size, w * block_size);
   } else if (node_def.op() == "SpaceToDepth") {
     if (h % block_size != 0 || w % block_size != 0) {
@@ -5027,7 +5022,7 @@ Status ConvertDepthSpaceShuffle(OpConverterParams* params) {
     // Transpose [C, H/r, r, W/r, r] -> [r, r, C, H/r, W/r]
     transpose_perm = {2, 4, 0, 1, 3};
     // Second Reshape  [r, r, C, H/r, W/r] -> [C*r*r, H/r, W/r]
-    second_shuffle_shape = nvinfer1::DimsCHW(
+    second_shuffle_shape = nvinfer1::Dims3(
         num_channels * block_size * block_size, h / block_size, w / block_size);
   }
   if (params->validation_only) return Status::OK();
@@ -5510,8 +5505,28 @@ Status ConvertGraphDefToEngine(
   TrtUniquePtrType<nvinfer1::IBuilder> builder(
       nvinfer1::createInferBuilder(*logger));
   builder->setMaxBatchSize(max_batch_size);
-  builder->setMaxWorkspaceSize(max_workspace_size_bytes);
   builder->setGpuAllocator(allocator);
+#if IS_TRT_VERSION_GE(6, 0, 0, 0)
+  TrtUniquePtrType<nvinfer1::IBuilderConfig> builder_config(
+      builder->createBuilderConfig());
+  builder_config->setMaxWorkspaceSize(max_workspace_size_bytes);
+  if (precision_mode == TrtPrecisionMode::FP16) {
+    builder_config->setFlag(nvinfer1::BuilderFlag::kFP16);
+  } else if (precision_mode == TrtPrecisionMode::INT8) {
+    builder_config->setFlag(nvinfer1::BuilderFlag::kFP16);
+    builder_config->setFlag(nvinfer1::BuilderFlag::kINT8);
+    if (use_calibration) {
+      builder_config->setInt8Calibrator(calibrator);
+    } else {
+      builder_config->setInt8Calibrator(nullptr);
+    }
+  }
+  const uint32_t flags = 0U;  // Implicit Batch Mode
+  // Create the network.
+  auto trt_network =
+      TrtUniquePtrType<nvinfer1::INetworkDefinition>(builder->createNetworkV2(flags));
+#else // IS_TRT_VERSION_GE(6, 0, 0, 0)
+  builder->setMaxWorkspaceSize(max_workspace_size_bytes);
   if (precision_mode == TrtPrecisionMode::FP16) {
     builder->setFp16Mode(true);
   } else if (precision_mode == TrtPrecisionMode::INT8) {
@@ -5530,6 +5545,8 @@ Status ConvertGraphDefToEngine(
   // Create the network.
   auto trt_network =
       TrtUniquePtrType<nvinfer1::INetworkDefinition>(builder->createNetwork());
+#endif // IS_TRT_VERSION_GE(6, 0, 0, 0)
+
   if (!trt_network) {
     return errors::Internal("Failed to create TensorRT network object");
   }
@@ -5628,7 +5645,12 @@ Status ConvertGraphDefToEngine(
 
   // Build the engine.
   VLOG(1) << "Starting engine creation";
+#if IS_TRT_VERSION_GE(6, 0, 0, 0)
+  engine->reset(
+      builder->buildEngineWithConfig(*converter.network(), *builder_config));
+#else
   engine->reset(builder->buildCudaEngine(*converter.network()));
+#endif // IS_TRT_VERSION_GE(6, 0, 0, 0)
   if (engine->get() == nullptr) {
     return errors::Internal("Failed to build TensorRT engine");
   }
