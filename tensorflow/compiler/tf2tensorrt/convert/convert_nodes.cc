@@ -305,21 +305,6 @@ Status ValidateTensorProperties(const string& producer_node_type,
   return Status::OK();
 }
 
-string DebugString(const nvinfer1::DimensionType type) {
-  switch (type) {
-    case nvinfer1::DimensionType::kSPATIAL:
-      return "kSPATIAL";
-    case nvinfer1::DimensionType::kCHANNEL:
-      return "kCHANNEL";
-    case nvinfer1::DimensionType::kINDEX:
-      return "kINDEX";
-    case nvinfer1::DimensionType::kSEQUENCE:
-      return "kSEQUENCE";
-    default:
-      return StrCat(static_cast<int>(type), "=unknown");
-  }
-}
-
 string DebugString(const nvinfer1::DataType trt_dtype) {
   switch (trt_dtype) {
     case nvinfer1::DataType::kFLOAT:
@@ -3653,7 +3638,6 @@ void GetTensorDimsWithProtoShape(const Tensor& tensor, nvinfer1::Dims* dims) {
     dims->nbDims = 1;
     // No dimension provided. Flatten it.
     dims->d[0] = tensor.NumElements();
-    dims->type[0] = nvinfer1::DimensionType::kSPATIAL;
     for (int i = 1; i < nvinfer1::Dims::MAX_DIMS; ++i) {
       dims->d[i] = 0;
     }
