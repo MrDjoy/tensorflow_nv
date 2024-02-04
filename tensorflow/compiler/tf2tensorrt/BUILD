@@ -248,6 +248,7 @@ tf_cuda_library(
     hdrs = [
         "utils/trt_int8_calibrator.h",
         "utils/trt_lru_cache.h",
+        "utils/trt_tensor_proxy.h",
     ],
     deps = [
         ":trt_allocator",
@@ -456,17 +457,17 @@ tf_cuda_cc_test(
     ],
 )
 
-tf_gpu_kernel_library(
-    name = "plugin_cast",
-    srcs = ["plugin/plugin_cast.cu.cc"],
-    deps = [
-        ":trt_plugins",
-        "//tensorflow/core:framework_lite",
-    ] + if_tensorrt([
-        "@local_config_cuda//cuda:cuda_headers",
-        "@local_config_tensorrt//:tensorrt",
-    ]),
-)
+# tf_gpu_kernel_library(
+#     name = "plugin_cast",
+#     srcs = ["plugin/plugin_cast.cu.cc"],
+#     deps = [
+#         ":trt_plugins",
+#         "//tensorflow/core:framework_lite",
+#     ] + if_tensorrt([
+#         "@local_config_cuda//cuda:cuda_headers",
+#         "@local_config_tensorrt//:tensorrt",
+#     ]),
+# )
 
 tf_cuda_library(
     name = "trt_plugins",
@@ -484,6 +485,7 @@ cc_library(
     hdrs = [
         "common/utils.h",
         "convert/utils.h",
+        "utils/trt_tensor_proxy.h",
     ],
     copts = tf_copts(),
     deps = [

@@ -54,6 +54,12 @@ void Logger::log(Severity severity, const char* msg) noexcept {
     }
   }
 }
+
+Logger* Logger::GetLogger() {
+  static Logger* logger = new Logger("DefaultLogger");
+  return logger;
+}
+
 }  // namespace tensorrt
 }  // namespace tensorflow
 
