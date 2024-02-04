@@ -63,6 +63,8 @@ tf_cuda_cc_test(
         "nomac",
     ],
     deps = [
+        ":trt_logging",
+        ":utils",
         "//tensorflow/core:gpu_init",
         "//tensorflow/core:lib",
         "//tensorflow/core:stream_executor",
@@ -479,7 +481,10 @@ tf_cuda_library(
 cc_library(
     name = "utils",
     srcs = ["convert/utils.cc"],
-    hdrs = ["convert/utils.h"],
+    hdrs = [
+        "common/utils.h",
+        "convert/utils.h",
+    ],
     copts = tf_copts(),
     deps = [
         "//tensorflow/core:framework",
