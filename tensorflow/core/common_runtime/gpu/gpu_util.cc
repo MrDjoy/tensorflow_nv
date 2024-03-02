@@ -38,6 +38,11 @@ limitations under the License.
 #include "tensorflow/core/platform/tracing.h"
 #include "tensorflow/core/util/util.h"
 
+#ifdef GOOGLE_CUDA
+#include "third_party/gpus/cuda/include/cuda.h"
+#include "third_party/gpus/cuda/include/cuda_runtime_api.h"
+#endif  // GOOGLE_CUDA
+
 // IMPLEMENTATION NOTE:
 //
 // 1. Within this module, we intentionally LOG(FATAL) if any stream
@@ -447,6 +452,26 @@ void GPUUtil::CopyGPUTensorToSameGPU(Device* gpu_device,
   }
 
   done(Status::OK());
+}
+
+Tensor GPUUtil::copyFromGPU(const Tensor& t) {
+  Tensor cpu_tensor(t.dtype(), t.shape());
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+  cudaMemcpyAsync(cpu_tensor.data(), t.data(), t.TotalBytes(),
+                  cudaMemcpyDeviceToHost, stream);
+  cudaStreamSynchronize(stream);
+  return cpu_tensor;
+}
+
+Tensor GPUUtil::copyToGPU(const Tensor& t, Allocator* gpu_allocator_) {
+  Tensor gpu_tensor(gpu_allocator_, t.dtype(), t.shape());
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+  cudaMemcpyAsync(gpu_tensor.data(), t.data(), t.TotalBytes(),
+                  cudaMemcpyHostToDevice, stream);
+  cudaStreamSynchronize(stream);
+  return gpu_tensor;
 }
 
 }  // namespace tensorflow

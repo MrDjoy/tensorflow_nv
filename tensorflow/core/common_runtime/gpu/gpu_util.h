@@ -105,6 +105,10 @@ class GPUUtil {
                                      const Tensor* src_gpu_tensor,
                                      Tensor* dst_gpu_tensor,
                                      StatusCallback done);
+
+  static Tensor copyFromGPU(const Tensor& t);
+
+  static Tensor copyToGPU(const Tensor& t, Allocator* gpu_allocator_);
 };
 
 }  // namespace tensorflow
