@@ -38,11 +38,6 @@ limitations under the License.
 #include "tensorflow/core/platform/tracing.h"
 #include "tensorflow/core/util/util.h"
 
-#ifdef GOOGLE_CUDA
-#include "third_party/gpus/cuda/include/cuda.h"
-#include "third_party/gpus/cuda/include/cuda_runtime_api.h"
-#endif  // GOOGLE_CUDA
-
 // IMPLEMENTATION NOTE:
 //
 // 1. Within this module, we intentionally LOG(FATAL) if any stream
@@ -454,6 +449,9 @@ void GPUUtil::CopyGPUTensorToSameGPU(Device* gpu_device,
   done(Status::OK());
 }
 
+
+#ifdef GOOGLE_CUDA
+
 Tensor GPUUtil::copyFromGPU(const Tensor& t) {
   Tensor cpu_tensor(t.dtype(), t.shape());
   cudaStream_t stream;
@@ -475,5 +473,33 @@ Tensor GPUUtil::copyToGPU(const Tensor& t, Allocator* gpu_allocator_) {
   cudaStreamDestroy(stream);
   return gpu_tensor;
 }
+
+void GPUUtil::cudaStreamCreate(cudaStream_t* stream) {
+  cudaStreamCreate(stream);
+}
+
+void GPUUtil::cudaStreamDestroy(cudaStream_t stream) {
+  cudaStreamDestroy(stream);
+}
+
+void GPUUtil::cudaStreamSynchronize(cudaStream_t stream) {
+  cudaStreamSynchronize(stream);
+}
+
+Tensor GPUUtil::copyToGPU(const Tensor& t, Allocator* gpu_allocator,
+                          cudaStream_t stream) {
+  Tensor gpu_tensor(gpu_allocator_, t.dtype(), t.shape());
+  cudaMemcpyAsync(gpu_tensor.data(), t.data(), t.TotalBytes(),
+                  cudaMemcpyHostToDevice, stream);
+  return gpu_tensor;
+}
+
+Tensor GPUUtil::copyFromGPU(const Tensor& t, cudaStream_t stream) {
+  Tensor cpu_tensor(t.dtype(), t.shape());
+  cudaMemcpyAsync(cpu_tensor.data(), t.data(), t.TotalBytes(),
+                  cudaMemcpyDeviceToHost, stream);
+  return cpu_tensor;
+}
+#endif  // GOOGLE_CUDA
 
 }  // namespace tensorflow

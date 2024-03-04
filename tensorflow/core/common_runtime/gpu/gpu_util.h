@@ -22,6 +22,11 @@ limitations under the License.
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/stream_executor.h"
 
+#ifdef GOOGLE_CUDA
+#include "third_party/gpus/cuda/include/cuda.h"
+#include "third_party/gpus/cuda/include/cuda_runtime_api.h"
+#endif  // GOOGLE_CUDA
+
 namespace tensorflow {
 
 class RecvTensorResponse;
@@ -106,9 +111,22 @@ class GPUUtil {
                                      Tensor* dst_gpu_tensor,
                                      StatusCallback done);
 
+#ifdef GOOGLE_CUDA
   static Tensor copyFromGPU(const Tensor& t);
 
   static Tensor copyToGPU(const Tensor& t, Allocator* gpu_allocator_);
+
+  static Tensor copyFromGPU(const Tensor& t, cudaStream_t stream);
+
+  static Tensor copyToGPU(const Tensor& t, Allocator* gpu_allocator,
+                          cudaStream_t stream);
+
+  static void cudaStreamCreate(cudaStream_t* stream);
+
+  static void cudaStreamDestroy(cudaStream_t stream);
+
+  static void cudaStreamSynchronize(cudaStream_t stream);
+#endif  // GOOGLE_CUDA
 };
 
 }  // namespace tensorflow
