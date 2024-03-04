@@ -461,6 +461,7 @@ Tensor GPUUtil::copyFromGPU(const Tensor& t) {
   cudaMemcpyAsync(cpu_tensor.data(), t.data(), t.TotalBytes(),
                   cudaMemcpyDeviceToHost, stream);
   cudaStreamSynchronize(stream);
+  cudaStreamDestroy(stream);
   return cpu_tensor;
 }
 
@@ -471,6 +472,7 @@ Tensor GPUUtil::copyToGPU(const Tensor& t, Allocator* gpu_allocator_) {
   cudaMemcpyAsync(gpu_tensor.data(), t.data(), t.TotalBytes(),
                   cudaMemcpyHostToDevice, stream);
   cudaStreamSynchronize(stream);
+  cudaStreamDestroy(stream);
   return gpu_tensor;
 }
 
