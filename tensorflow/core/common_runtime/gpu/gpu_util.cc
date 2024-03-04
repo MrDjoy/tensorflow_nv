@@ -463,8 +463,8 @@ Tensor GPUUtil::copyFromGPU(const Tensor& t) {
   return cpu_tensor;
 }
 
-Tensor GPUUtil::copyToGPU(const Tensor& t, Allocator* gpu_allocator_) {
-  Tensor gpu_tensor(gpu_allocator_, t.dtype(), t.shape());
+Tensor GPUUtil::copyToGPU(const Tensor& t, Allocator* gpu_allocator) {
+  Tensor gpu_tensor(gpu_allocator, t.dtype(), t.shape());
   cudaStream_t stream;
   cudaStreamCreate(&stream);
   cudaMemcpyAsync(gpu_tensor.data(), t.data(), t.TotalBytes(),
@@ -488,7 +488,7 @@ void GPUUtil::cudaStreamSynchronize(cudaStream_t stream) {
 
 Tensor GPUUtil::copyToGPU(const Tensor& t, Allocator* gpu_allocator,
                           cudaStream_t stream) {
-  Tensor gpu_tensor(gpu_allocator_, t.dtype(), t.shape());
+  Tensor gpu_tensor(gpu_allocator, t.dtype(), t.shape());
   cudaMemcpyAsync(gpu_tensor.data(), t.data(), t.TotalBytes(),
                   cudaMemcpyHostToDevice, stream);
   return gpu_tensor;
